@@ -1,4 +1,5 @@
 services:
+  # 1.Redis
   redis:
     image: redis:8.8.0-alpine
     container_name: redis
@@ -16,5 +17,38 @@ services:
       timeout: 5s
       retries: 5
 
+  # 2.PostgreSQL Database service
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 131205
+      POSTGRES_DB: postgres 
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgresql-data:/var/lib/postgresql/data 
+
+  # 3.Label Studio service
+  label-studio:
+    image: heartexlabs/label-studio:latest
+    container_name: label-studio
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # ตั้งค่าเชื่อมต่อใช้งาน Label Studio กับ PostgreSQL
+      DJANGO_DB: default
+      POSTGRE_NAME: postgres
+      POSTGRE_USER: postgres
+      POSTGRE_PASSWORD: 131205
+      POSTGRE_PORT: 5432
+      POSTGRE_HOST: postgres 
+    depends_on:
+      - postgres 
+
 volumes:
   redis-data:
+  postgresql-data:
