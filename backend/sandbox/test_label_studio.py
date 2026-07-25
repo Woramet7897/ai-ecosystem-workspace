@@ -14,7 +14,7 @@ def test_label_studio():
     
     try:
         print("\n--- Step 1: Listing All Projects ---")
-        projects = ls.projects.list()
+        projects = list(ls.projects.list())
         print(f"Found {len(projects)} projects.")
         
         # If no projects, just create one to show we can
@@ -23,7 +23,7 @@ def test_label_studio():
             ls.projects.create(title="New Project #1")
             ls.projects.create(title="Example Sentiment")
             ls.projects.create(title="New Project #3")
-            projects = ls.projects.list()
+            projects = list(ls.projects.list())
             print(f"Created {len(projects)} projects.")
 
         for p in projects:
@@ -42,14 +42,14 @@ def test_label_studio():
             print(f"\n--- Step 2: Listing Tasks in Project ID {p_id} ('{target_project.title}') ---")
             print(f"Fetching tasks for project ID: {p_id}...")
             
-            tasks = ls.tasks.list(project=p_id)
-            if len(list(tasks)) == 0:
+            tasks = list(ls.tasks.list(project=p_id))
+            if len(tasks) == 0:
                 print("No tasks found, creating mock tasks...")
                 ls.tasks.create(project=p_id, data={"$undefined$": "/data/upload/3/e9a6d3b3-03_00.jpg"})
                 ls.tasks.create(project=p_id, data={"$undefined$": "/data/upload/3/b5a61b59-ctto.jpg"})
-                tasks = ls.tasks.list(project=p_id)
+                tasks = list(ls.tasks.list(project=p_id))
 
-            print(f"Found {len(list(tasks))} tasks in this project.")
+            print(f"Found {len(tasks)} tasks in this project.")
             for task in tasks:
                 print(f"  Task #{task.id} [Task ID: {task.id}] -> Data: {task.data}")
                 
