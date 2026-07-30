@@ -6,10 +6,17 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "arq>=0.28.0",
+    "bcrypt>=5.0.0",
+    "email-validator>=2.3.0",
+    "fastapi>=0.141.1",
     "label-studio-sdk>=2.1.0",
     "minio>=7.2.20",
+    "passlib[bcrypt]>=1.7.4",
     "psycopg[binary]>=3.3.4",
     "pydantic-settings>=2.14.2",
+    "python-jose[cryptography]>=3.5.0",
+    "python-multipart>=0.0.32",
     "redis>=5.3.1",
     "sqlalchemy>=2.0.51",
+    "uvicorn>=0.52.0",
 ]

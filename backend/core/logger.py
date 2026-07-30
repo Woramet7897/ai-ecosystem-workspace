@@ -17,8 +17,7 @@ def setup_custom_logger(name):
         )
 
         # 1. แสดงผลออกทางหน้าจอ (Console)
-        # แก้ปัญหา UnicodeEncodeError บน Windows โดยการใช้เปิด Stream แบบรองรับ UTF-8
-        console_handler = logging.StreamHandler(open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1) if sys.platform == 'win32' else sys.stdout)
+        console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.DEBUG)
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
@@ -28,7 +27,7 @@ def setup_custom_logger(name):
         log_dir = os.path.join(os.path.dirname(__file__), '..', 'logs')
         os.makedirs(log_dir, exist_ok=True)
         
-        file_handler = logging.FileHandler(os.path.join(log_dir, 'app.log'), encoding='utf-8')
+        file_handler = logging.FileHandler(os.path.join(log_dir, 'app.log'))
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
@@ -42,3 +41,4 @@ if __name__ == '__main__':
     log.info("This is an info message")
     log.warning("This is a warning message")
     log.error("This is an error message")
+
