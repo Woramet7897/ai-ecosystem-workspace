@@ -1,4 +1,4 @@
-"""
+﻿"""
 core/database.py — SQLAlchemy engine + session dependency สำหรับ PostgreSQL
 
 ทำหน้าที่เป็น infra client ชั้นเดียวที่คุยกับ PostgreSQL โดยตรง
@@ -41,5 +41,5 @@ def get_db() -> Generator[Session, None, None]:
 
 def create_all_tables():
     """สร้างตารางทั้งหมดใน PostgreSQL (เรียกตอน startup)"""
-    from features.auth.models import User  # noqa: F401 — import เพื่อให้ Base รู้จัก model
+    from app.features.auth.models import User  # noqa: F401 — import เพื่อให้ Base รู้จัก model
     Base.metadata.create_all(bind=engine)

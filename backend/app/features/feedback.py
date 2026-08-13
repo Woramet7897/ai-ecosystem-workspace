@@ -1,4 +1,4 @@
-"""
+﻿"""
 feedback.py - Data & Feedback API
 ด้านที่ 2: รับ feedback จาก prediction แล้ว forward ไป Label Studio
 และ export ข้อมูลจาก MinIO Object Storage
@@ -13,7 +13,7 @@ import time
 
 from core.config import settings
 from core.logger import setup_custom_logger
-from features.security import verify_token
+from app.features.security import verify_token
 
 logger = setup_custom_logger("feedback")
 

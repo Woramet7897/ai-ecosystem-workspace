@@ -1,4 +1,4 @@
-"""
+﻿"""
 auth/service.py - Business logic สำหรับ User management
 """
 
@@ -7,8 +7,8 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
-from features.auth.models import User
-from features.auth.security import hash_password, verify_password
+from app.features.auth.models import User
+from app.features.auth.security import hash_password, verify_password
 
 
 def is_email_or_username_taken(db: Session, email: str, username: str) -> Optional[str]:

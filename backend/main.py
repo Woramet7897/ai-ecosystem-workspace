@@ -1,4 +1,4 @@
-"""
+﻿"""
 main.py - FastAPI Application Entry Point
 AI Ecosystem Backend
 
@@ -14,7 +14,7 @@ from core.logger import setup_custom_logger
 from core.database import create_all_tables
 from core.minio_setup import ensure_buckets_exist
 from features import inference, feedback, mlops, security
-from features.auth import router as auth_router
+from app.features.auth import router as auth_router
 
 logger = setup_custom_logger("main")
 

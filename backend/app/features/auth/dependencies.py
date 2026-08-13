@@ -1,4 +1,4 @@
-"""
+﻿"""
 auth/dependencies.py - FastAPI Dependencies สำหรับดึง current user จาก JWT token
 """
 
@@ -8,10 +8,10 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
-from features.auth.database import get_db
-from features.auth.models import User
-from features.auth.security import decode_token
-from features.auth.service import get_user_by_id
+from app.features.auth.database import get_db
+from app.features.auth.models import User
+from app.features.auth.security import decode_token
+from app.features.auth.service import get_user_by_id
 
 # ใช้ HTTPBearer ทำให้ Swagger UI แสดงปุ่ม Authorize และรับ Bearer token ได้ถูกต้อง
 bearer_scheme = HTTPBearer(auto_error=False)

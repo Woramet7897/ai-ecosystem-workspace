@@ -1,4 +1,4 @@
-"""
+﻿"""
 auth/database.py - PostgreSQL connection & session management
 """
 
@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 
 from core.config import settings
-from features.auth.models import Base
+from app.features.auth.models import Base
 
 # สร้าง connection string จาก settings
 DATABASE_URL = (

@@ -1,4 +1,4 @@
-"""
+﻿"""
 inference.py - Inference API
 ด้านที่ 1: AI Model Prediction
 รับข้อมูล input จาก client แล้วส่งผ่านโมเดล AI เพื่อประมวลผลและส่งผลลัพธ์กลับ
@@ -11,7 +11,7 @@ from typing import Optional, List
 import time
 
 from core.logger import setup_custom_logger
-from features.security import verify_token
+from app.features.security import verify_token
 
 logger = setup_custom_logger("inference")
 

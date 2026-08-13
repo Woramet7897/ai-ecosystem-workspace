@@ -1,4 +1,4 @@
-"""
+﻿"""
 mlops.py - MLOps API
 ด้านที่ 3: Model Management, Health Check, System Status
 
@@ -15,7 +15,7 @@ import time
 
 from core.config import settings
 from core.logger import setup_custom_logger
-from features.security import verify_token
+from app.features.security import verify_token
 
 logger = setup_custom_logger("mlops")
 

@@ -1,4 +1,4 @@
-"""
+﻿"""
 auth/router.py - API endpoints สำหรับ Sign-up / Login / Logout / Refresh / Me
 """
 
@@ -6,17 +6,17 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from features.auth.database import get_db
-from features.auth.dependencies import get_current_active_user
-from features.auth.models import User
-from features.auth.schemas import (
+from app.features.auth.database import get_db
+from app.features.auth.dependencies import get_current_active_user
+from app.features.auth.models import User
+from app.features.auth.schemas import (
     LoginRequest, MessageResponse, RefreshTokenRequest,
     SignUpRequest, TokenResponse, UserResponse,
 )
-from features.auth.security import (
+from app.features.auth.security import (
     create_access_token, create_refresh_token, decode_token,
 )
-from features.auth.service import (
+from app.features.auth.service import (
     authenticate_user, create_user, get_user_by_id, is_email_or_username_taken,
 )
 
