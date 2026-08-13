@@ -1,4 +1,4 @@
-﻿"""
+"""
 core/database.py — SQLAlchemy engine + session dependency สำหรับ PostgreSQL
 
 ทำหน้าที่เป็น infra client ชั้นเดียวที่คุยกับ PostgreSQL โดยตรง

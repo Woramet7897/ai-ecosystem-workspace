@@ -6,12 +6,9 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Boolean, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
-
-class Base(DeclarativeBase):
-    pass
-
+from core.database import Base  # ใช้ Base เดียวกับ core เพื่อให้ create_all_tables() รู้จัก User
 
 class User(Base):
     """User account model - ตาราง users"""

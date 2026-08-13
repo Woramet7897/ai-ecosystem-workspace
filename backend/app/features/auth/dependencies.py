@@ -1,4 +1,4 @@
-﻿"""
+"""
 auth/dependencies.py - FastAPI Dependencies สำหรับดึง current user จาก JWT token
 """
 
@@ -8,7 +8,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
-from app.features.auth.database import get_db
+from core.database import get_db
 from app.features.auth.models import User
 from app.features.auth.security import decode_token
 from app.features.auth.service import get_user_by_id

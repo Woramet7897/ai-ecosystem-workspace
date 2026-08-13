@@ -1,4 +1,4 @@
-﻿"""
+"""
 auth/router.py - API endpoints สำหรับ Sign-up / Login / Logout / Refresh / Me
 """
 
@@ -6,7 +6,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.features.auth.database import get_db
+from core.database import get_db
 from app.features.auth.dependencies import get_current_active_user
 from app.features.auth.models import User
 from app.features.auth.schemas import (
