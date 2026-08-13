@@ -8,11 +8,13 @@ from typing import Optional
 import bcrypt
 from jose import JWTError, jwt
 
-# ── Config ──
-SECRET_KEY = "ai-ecosystem-super-secret-key-2024"  # TODO: ย้ายไป .env ก่อน production
-ALGORITHM = "HS256"
+from core.config import settings  # อ่าน secret จาก .env ผ่าน core/config.py
+
+# ── Config (อ่านจาก .env ผ่าน core/config.py ไม่ hardcode) ──
+SECRET_KEY = settings.jwt_secret_key
+ALGORITHM  = settings.jwt_algorithm
 ACCESS_TOKEN_EXPIRE_MINUTES = 30   # access token หมดอายุ 30 นาที
-REFRESH_TOKEN_EXPIRE_DAYS = 7      # refresh token หมดอายุ 7 วัน
+REFRESH_TOKEN_EXPIRE_DAYS   = 7    # refresh token หมดอายุ 7 วัน
 
 
 # ── Password hashing ──
