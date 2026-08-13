@@ -9,6 +9,18 @@ env/
 # Python cache
 __pycache__/
 *.pyc
+
 # Logs
 logs/
 *.log
+
+# Vibe code prompt (private)
+vibe-code-prompt.md
+
+# API snapshots
+storage/artifacts/*.xlsx
+storage/artifacts/*.csv
+# Logs
+logs/
+*.log
+.vibe-code-prompt.md
