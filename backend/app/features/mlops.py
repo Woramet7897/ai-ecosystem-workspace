@@ -1,4 +1,4 @@
-﻿"""
+"""
 mlops.py - MLOps API
 ด้านที่ 3: Model Management, Health Check, System Status
 
@@ -76,6 +76,13 @@ class HealthResponse(BaseModel):
     services: List[ServiceStatus] = Field(..., description="สถานะของแต่ละ service")
     gpu_vram_mb: Optional[float]  = Field(None, description="VRAM ที่ว่างอยู่ (MB) ถ้ามี GPU")
     timestamp: str                = Field(..., description="เวลาที่ตรวจสอบ")
+
+
+class SimpleStatusResponse(BaseModel):
+    """Response สำหรับ status check แบบง่าย"""
+    status:        str = Field(..., description="สถานะระบบ (เช่น 'ok')")
+    model_version: str = Field(..., description="เวอร์ชันโมเดลที่ใช้งานอยู่")
+    timestamp:     str = Field(..., description="เวลาที่ตรวจสอบ")
 
 
 # ──────────────────────────────────────────────
@@ -249,5 +256,25 @@ def health_check(token: str = Depends(verify_token)):
         status=status,
         services=services,
         gpu_vram_mb=gpu_vram,
+        timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    )
+
+
+@router.get(
+    "/status",
+    response_model=SimpleStatusResponse,
+    summary="ตรวจสอบสถานะระบบเบื้องต้น",
+    description="ตรวจสอบสถานะแบบง่าย คืนค่า status 'ok', version โมเดลปัจจุบัน และเวลาปัจจุบัน",
+)
+def simple_status(token: str = Depends(verify_token)):
+    """
+    GET /mlops/status
+
+    ดึงสถานะระบบเบื้องต้นโดยไม่ต้องเช็ค database หรือ external services
+    """
+    logger.info("[status] ตรวจสอบสถานะระบบเบื้องต้น")
+    return SimpleStatusResponse(
+        status="ok",
+        model_version=ACTIVE_MODEL_VERSION,
         timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     )
