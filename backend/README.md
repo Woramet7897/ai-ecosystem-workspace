@@ -1,53 +1,64 @@
-# Backend — AI Ecosystem
+# AI Ecosystem Backend
 
-## แนวคิดหลัก: แยก `core/` ออกจาก `features/`
+Backend หลักสำหรับระบบ AI Ecosystem พัฒนาด้วย **FastAPI** โดยใช้โครงสร้างแบบ **Feature-Based Architecture** เพื่อให้ระบบมีความเป็นระเบียบ สเกลได้ง่าย และดูแลรักษาสะดวก
 
-โครงสร้างนี้แบ่งโค้ดออกเป็น 2 ชั้นชัดเจน:
+## Tech Stack
+* **Framework:** FastAPI
+* **Database:** PostgreSQL (ผ่าน SQLAlchemy ORM)
+* **Object Storage:** MinIO (สำหรับเก็บไฟล์, รูปภาพ, โมเดล)
+* **Data Labeling:** Label Studio (ส่ง Feedback ไปสร้าง Annotation Task)
+* **Authentication:** JWT (JSON Web Tokens)
+* **Package Manager:** `uv`
 
-### `core/` — Infra Client Layer
-คุยกับ external service โดยตรง (Postgres, MinIO, Label Studio)
-ไม่มี business logic — เป็นแค่ "สะพาน" ไปหา infrastructure
-
-| ไฟล์ | เชื่อมกับ |
-|---|---|
-| `config.py` | อ่านค่าจาก `.env` ผ่าน pydantic-settings |
-| `database.py` | PostgreSQL ผ่าน SQLAlchemy |
-| `logger.py` | Console + File logging |
-| `minio_client.py` | MinIO Object Storage |
-| `minio_setup.py` | สร้าง bucket ตอน startup |
-| `label_studio_client.py` | Label Studio REST API |
-| `label_studio_tasks.py` | Helper สำหรับ task management |
-
-### `features/` — Business Logic Layer
-แต่ละ feature รับผิดชอบ domain ของตัวเอง ไม่ยุ่งกับ infra โดยตรง
-
-| Feature | Domain |
-|---|---|
-| `auth/` | Authentication, JWT, User management |
-| `inference/` | AI Model prediction |
-| `feedback/` | รับ feedback ส่งต่อ Label Studio |
-| `mlops/` | Model management, Health check |
-| `security/` | Token verification, Rate limit |
-
-## ทำไมไม่ใช้ Layer-based (models/, routers/, services/ รวมกัน)?
-
-| Layer-based | Feature-based |
-|---|---|
-| ทุก model รวมกันในโฟลเดอร์เดียว | แต่ละ feature มี model ของตัวเอง |
-| เพิ่ม feature ต้องแตะหลายโฟลเดอร์ | เพิ่ม feature = เพิ่มโฟลเดอร์ใหม่ |
-| ยากเมื่อโปรเจกต์ใหญ่ขึ้น | Scale ได้ง่าย |
-
-## วิธีรัน
-
-```bash
-cd backend
-uv run uvicorn main:app --reload
-# เปิด http://localhost:8000/docs
+## โครงสร้างโฟลเดอร์หลัก (Directory Structure)
+```
+backend/
+├── app/
+│   └── features/     # Business Logic ทั้งหมด แบ่งเป็นโมดูลตามฟีเจอร์ (เช่น auth, inference)
+├── core/             # Infrastructure Layer เชื่อมต่อ Services ภายนอก (ไม่มี Business Logic)
+├── scripts/          # สคริปต์ใช้งานทั่วไป (เช่น export_api_list)
+├── main.py           # Entry point ของ FastAPI
+└── pyproject.toml    # ไฟล์จัดการ dependencies ของระบบ
 ```
 
-## Export API list
+## วิธีการรันระบบ (How to Run)
+1. ติดตั้ง dependencies ด้วย `uv`:
+   ```bash
+   uv sync
+   ```
+2. รัน FastAPI server:
+   ```bash
+   uv run uvicorn main:app --reload
+   ```
 
+## API Documentation
+เมื่อรันเซิร์ฟเวอร์แล้ว สามารถดู API Docs และทดสอบยิง API ได้ที่:
+* **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
+* **ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+* **OpenAPI JSON:** [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json)
+
+## สรุปรายการ Endpoints
+ระบบนี้ประกอบด้วย Endpoints หลักที่แบ่งตามฟีเจอร์ ดังนี้:
+
+| กลุ่ม (Tags) | Method | Endpoint | หน้าที่การทำงาน |
+| --- | --- | --- | --- |
+| **Root** | `GET` | `/` | Health check เบื้องต้น ตรวจสอบว่า API ทำงานอยู่ |
+| **Authentication** | `POST` | `/auth/register` | สมัครสมาชิกใหม่ (บันทึกลง Postgres) |
+| | `POST` | `/auth/login` | เข้าสู่ระบบและรับ JWT Access Token |
+| | `GET` | `/auth/me` | ดึงข้อมูลโปรไฟล์ของ User ปัจจุบัน |
+| | `POST` | `/auth/refresh` | ขอ Token ใหม่เมื่อ Token เดิมหมดอายุ |
+| **Inference** | `POST` | `/inference/predict` | ส่งข้อความ/รูปภาพ เข้าโมเดล AI แล้วรับผลลัพธ์ |
+| | `POST` | `/inference/predict/batch` | ประมวลผล input พร้อมกันหลายรายการ |
+| | `GET` | `/inference/history` | ดูประวัติผลการทำนายของ User ตัวเอง |
+| **Feedback** | `POST` | `/feedback/submit` | ส่งแจ้งผลการทำนายที่ผิด (สร้าง Task ใน Label Studio) |
+| | `GET` | `/feedback/reviewed` | ดึงข้อมูลที่ Expert ตรวจสอบแล้วจาก Label Studio |
+| **MLOps** | `GET` | `/mlops/models` | ดูรายการโมเดลและเวอร์ชันทั้งหมดที่มี |
+| | `POST` | `/mlops/models/activate` | สลับโมเดลที่ต้องการใช้งาน (Blue-Green) |
+| | `GET` | `/mlops/health` | ตรวจสอบสถานะการเชื่อมต่อ (Postgres, Redis, MinIO) |
+| | `GET` | `/mlops/status` | เช็คสถานะระบบและโมเดลที่ใช้งานอยู่แบบเร็ว |
+
+## การ Export รายการ API
+คุณสามารถใช้สคริปต์เพื่อ Export รายการ API ทั้งหมดออกมาดูได้:
 ```bash
 uv run python scripts/export_api_list.py
-# ได้ไฟล์ storage/artifacts/api_snapshot_YYYY-MM-DD.xlsx
 ```
