@@ -59,7 +59,6 @@ app = FastAPI(
 | **Inference** | รับ input ส่งผ่านโมเดล AI แล้วคืนผลลัพธ์ |
 | **Feedback** | รับ feedback และ export ข้อมูลจาก MinIO |
 | **MLOps** | จัดการโมเดลและตรวจสอบสถานะระบบ |
-| **Security** | ตรวจสอบ token และ usage quota |
     """,
     version="0.1.0",
     contact={"name": "Warintorn", "url": "https://github.com/Woramet7897/ai-ecosystem-workspace"},
@@ -68,7 +67,6 @@ app = FastAPI(
         {"name": "Inference",      "description": "ส่ง input เข้าโมเดล AI แล้วรับผลลัพธ์"},
         {"name": "Feedback",       "description": "รับ feedback และ export ข้อมูลจาก MinIO"},
         {"name": "MLOps",          "description": "จัดการโมเดลและตรวจสอบสถานะระบบ"},
-        {"name": "Security",       "description": "ตรวจสอบ token และ rate limit"},
         {"name": "Root",           "description": "Health check เบื้องต้น"},
     ],
     lifespan=lifespan,
