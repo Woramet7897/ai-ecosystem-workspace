@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # ── Label Studio ──
     label_studio_url: str
     label_studio_api_key: str
+    label_studio_feedback_project_id: int = 1  # Project ID ใน Label Studio สำหรับ feedback (override ใน .env)
 
     # ── JWT ──
     # สร้างค่าใหม่ด้วย: python -c "import secrets; print(secrets.token_hex(32))"
