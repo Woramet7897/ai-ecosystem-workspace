@@ -43,10 +43,11 @@ backend/
 | กลุ่ม (Tags) | Method | Endpoint | หน้าที่การทำงาน |
 | --- | --- | --- | --- |
 | **Root** | `GET` | `/` | Health check เบื้องต้น ตรวจสอบว่า API ทำงานอยู่ |
-| **Authentication** | `POST` | `/auth/register` | สมัครสมาชิกใหม่ (บันทึกลง Postgres) |
+| **Authentication** | `POST` | `/auth/signup` | สมัครสมาชิกใหม่ (บันทึกลง Postgres) |
 | | `POST` | `/auth/login` | เข้าสู่ระบบและรับ JWT Access Token |
-| | `GET` | `/auth/me` | ดึงข้อมูลโปรไฟล์ของ User ปัจจุบัน |
+| | `POST` | `/auth/logout` | ออกจากระบบ (Logout) |
 | | `POST` | `/auth/refresh` | ขอ Token ใหม่เมื่อ Token เดิมหมดอายุ |
+| | `GET` | `/auth/me` | ดึงข้อมูลโปรไฟล์ของ User ปัจจุบัน |
 | **Inference** | `POST` | `/inference/predict` | ส่งข้อความ/รูปภาพ เข้าโมเดล AI แล้วรับผลลัพธ์ |
 | | `POST` | `/inference/predict/batch` | ประมวลผล input พร้อมกันหลายรายการ |
 | | `GET` | `/inference/history` | ดูประวัติผลการทำนายของ User ตัวเอง |
