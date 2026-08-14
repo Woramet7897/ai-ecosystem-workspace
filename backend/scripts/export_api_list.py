@@ -20,7 +20,7 @@ try:
     import pandas as pd
     from openpyxl.utils import get_column_letter
 except ImportError:
-    print("กรุณาติดตั้ง: uv add httpx pandas openpyxl")
+    print("Please install: uv add httpx pandas openpyxl")
     sys.exit(1)
 
 OPENAPI_URL = "http://localhost:8000/openapi.json"
@@ -33,17 +33,17 @@ def fetch_openapi_spec() -> dict:
     try:
         resp = httpx.get(OPENAPI_URL, timeout=5)
         resp.raise_for_status()
-        print(f"✅ ดึง spec จาก {OPENAPI_URL}")
+        print(f"[OK] Fetching spec from {OPENAPI_URL}")
         return resp.json()
     except Exception as e:
-        print(f"⚠️  Server ไม่พร้อม ({e}) — ลองหาไฟล์ local...")
+        print(f"[WARN] Server not ready ({e}) — trying local file...")
 
     local = Path(__file__).parent / "openapi.json"
     if local.exists():
-        print(f"✅ อ่านจาก {local}")
+        print(f"[OK] Reading from {local}")
         return json.loads(local.read_text(encoding="utf-8"))
 
-    print("❌ ไม่พบ spec ทั้งจาก server และ local file")
+    print("[ERROR] Spec not found on server or local file")
     sys.exit(1)
 
 
@@ -104,14 +104,14 @@ def export_to_files(rows: list[dict]) -> None:
         for i, col in enumerate(df.columns, 1):
             max_len = max(df[col].astype(str).map(len).max(), len(col)) + 4
             ws.column_dimensions[get_column_letter(i)].width = min(max_len, 60)
-    print(f"✅ Excel: {xlsx_path}")
+    print(f"[OK] Excel: {xlsx_path}")
 
     # ── CSV ──
     csv_path = OUTPUT_DIR / f"api_snapshot_{today}.csv"
     df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-    print(f"✅ CSV:   {csv_path}")
+    print(f"[OK] CSV:   {csv_path}")
 
-    print(f"\nรวม {len(rows)} endpoint(s)")
+    print(f"\nTotal {len(rows)} endpoint(s)")
 
 
 if __name__ == "__main__":
