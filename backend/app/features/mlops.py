@@ -15,7 +15,8 @@ import time
 
 from core.config import settings
 from core.logger import setup_custom_logger
-from app.features.security import verify_token
+from app.features.auth.dependencies import get_current_active_user
+from app.features.auth.models import User
 
 logger = setup_custom_logger("mlops")
 
@@ -169,7 +170,7 @@ def _check_gpu() -> Optional[float]:
     summary="ดูโมเดลทั้งหมดที่มีในระบบ",
     description="แสดงรายการโมเดลทั้งหมดที่ลงทะเบียนไว้ พร้อมระบุว่าเวอร์ชันไหน active อยู่",
 )
-def list_models(token: str = Depends(verify_token)):
+def list_models(current_user: User = Depends(get_current_active_user)):
     """
     GET /mlops/models
 
@@ -192,7 +193,7 @@ def list_models(token: str = Depends(verify_token)):
     summary="สลับโมเดลที่ใช้งานอยู่",
     description="สลับเวอร์ชันโมเดลที่ใช้งาน (Blue-Green Deployment) โดยไม่ต้องรีสตาร์ทระบบ",
 )
-def activate_model(req: ActivateRequest, token: str = Depends(verify_token)):
+def activate_model(req: ActivateRequest, current_user: User = Depends(get_current_active_user)):
     """
     POST /mlops/models/activate
 
@@ -226,7 +227,7 @@ def activate_model(req: ActivateRequest, token: str = Depends(verify_token)):
     summary="ตรวจสอบสถานะทุก Service ในระบบ",
     description="ตรวจสอบสถานะจริงของทุก service ในระบบ: Postgres, Redis, MinIO และ GPU (ถ้ามี)",
 )
-def health_check(token: str = Depends(verify_token)):
+def health_check(current_user: User = Depends(get_current_active_user)):
     """
     GET /mlops/health
 
@@ -266,7 +267,7 @@ def health_check(token: str = Depends(verify_token)):
     summary="ตรวจสอบสถานะระบบเบื้องต้น",
     description="ตรวจสอบสถานะแบบง่าย คืนค่า status 'ok', version โมเดลปัจจุบัน และเวลาปัจจุบัน",
 )
-def simple_status(token: str = Depends(verify_token)):
+def simple_status(current_user: User = Depends(get_current_active_user)):
     """
     GET /mlops/status
 

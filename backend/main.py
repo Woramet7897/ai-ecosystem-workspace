@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from core.logger import setup_custom_logger
 from core.database import create_all_tables
 from core.minio_setup import ensure_buckets_exist
-from app.features import inference, feedback, mlops, security
+from app.features import inference, feedback, mlops
 from app.features.auth import router as auth_router
 
 logger = setup_custom_logger("main")
@@ -92,7 +92,6 @@ app.include_router(auth_router.router)
 app.include_router(inference.router)
 app.include_router(feedback.router)
 app.include_router(mlops.router)
-app.include_router(security.router)
 
 
 # ──────────────────────────────────────────────
