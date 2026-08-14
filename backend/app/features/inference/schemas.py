@@ -102,6 +102,7 @@ class PredictionHistoryItem(BaseModel):
     """ข้อมูล prediction 1 รายการในประวัติ"""
 
     prediction_id: str
+    user_id:       str   # UUID ของ user เจ้าของ prediction (ใช้ filter ใน get_history)
     result:        str
     confidence:    float
     model_version: str

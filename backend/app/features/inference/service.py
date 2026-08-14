@@ -30,18 +30,19 @@ _prediction_history: list[PredictionHistoryItem] = []
 MAX_HISTORY = 100  # เก็บไว้สูงสุด 100 รายการต่อ process
 
 
-def run_predict(req: PredictRequest) -> PredictResponse:
+def run_predict(req: PredictRequest, user_id: str) -> PredictResponse:
     """
     ประมวลผล input เดียวผ่านโมเดล AI (ปัจจุบันเป็น mock)
 
     Flow:
     1. ตรวจสอบ input ว่ามี input_text หรือ image_url อย่างใดอย่างหนึ่ง
     2. ส่งเข้า _mock_run_model() (จะถูกแทนด้วย logic จริงทีหลัง)
-    3. บันทึกลง history และ log
+    3. บันทึกลง history พร้อม user_id เพื่อ scope ต่อ user
     4. คืน PredictResponse
 
     Args:
-        req: PredictRequest ที่มี input_text หรือ image_url
+        req:     PredictRequest ที่มี input_text หรือ image_url
+        user_id: UUID (str) ของ user ที่เรียก API — ใช้แยก history ต่อ user
 
     Returns:
         PredictResponse พร้อม prediction_id, result, confidence, latency
@@ -67,43 +68,46 @@ def run_predict(req: PredictRequest) -> PredictResponse:
         input_type=input_type,
     )
 
-    # เก็บลง in-memory history
-    _store_history(response)
+    # เก็บลง in-memory history พร้อม user_id เพื่อ scope ต่อ user
+    _store_history(response, user_id=user_id)
 
     logger.info(
-        f"[predict] id={prediction_id} type={input_type} "
+        f"[predict] user={user_id} id={prediction_id} type={input_type} "
         f"confidence={confidence} latency={latency_ms}ms"
     )
     return response
 
 
-def run_batch_predict(requests: list[PredictRequest]) -> list[PredictResponse]:
+def run_batch_predict(requests: list[PredictRequest], user_id: str) -> list[PredictResponse]:
     """
     ประมวลผลหลาย input พร้อมกัน (sequential mock, parallel จริงใน production)
 
     Args:
         requests: รายการ PredictRequest
+        user_id:  UUID (str) ของ user ที่เรียก — ส่งต่อไปให้ run_predict แต่ละ item
 
     Returns:
         รายการ PredictResponse ตามลำดับ
     """
     results = []
     for req in requests:
-        results.append(run_predict(req))
+        results.append(run_predict(req, user_id=user_id))
     return results
 
 
-def get_history(limit: int = 20) -> list[PredictionHistoryItem]:
+def get_history(user_id: str, limit: int = 20) -> list[PredictionHistoryItem]:
     """
-    ดึงประวัติ prediction ล่าสุด (เรียงจากใหม่ไปเก่า)
+    ดึงประวัติ prediction ล่าสุดของ user คนนั้นเท่านั้น (เรียงจากใหม่ไปเก่า)
 
     Args:
-        limit: จำนวนรายการที่ต้องการ (ค่าเริ่มต้น 20)
+        user_id: UUID (str) ของ user ที่ขอประวัติ — filter เฉพาะของตัวเอง
+        limit:   จำนวนรายการที่ต้องการ (ค่าเริ่มต้น 20)
 
     Returns:
-        รายการ PredictionHistoryItem
+        รายการ PredictionHistoryItem ของ user นั้นเท่านั้น
     """
-    return list(reversed(_prediction_history))[:limit]
+    user_records = [r for r in _prediction_history if r.user_id == user_id]
+    return list(reversed(user_records))[:limit]
 
 
 # ── Private helpers ──
@@ -136,11 +140,12 @@ def _mock_run_model(req: PredictRequest) -> tuple[str, float, str]:
         return f"[MOCK] Detected: object (url={req.image_url})", 0.85, "image"
 
 
-def _store_history(response: PredictResponse) -> None:
-    """เก็บ prediction ลง in-memory store (กันล้น MAX_HISTORY)"""
+def _store_history(response: PredictResponse, user_id: str) -> None:
+    """เก็บ prediction ลง in-memory store พร้อม user_id (กันล้น MAX_HISTORY)"""
     global _prediction_history
     item = PredictionHistoryItem(
         prediction_id=response.prediction_id,
+        user_id=user_id,
         result=response.result,
         confidence=response.confidence,
         model_version=response.model_version,

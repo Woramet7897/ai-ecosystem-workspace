@@ -9,7 +9,6 @@ Endpoints:
 
 import time
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
 
 from core.logger import setup_custom_logger
 from app.features.auth.dependencies import get_current_active_user
@@ -68,7 +67,7 @@ def predict(
         f"[predict] user={current_user.email} "
         f"model={req.model_version} type={'text' if req.input_text else 'image'}"
     )
-    return service.run_predict(req)
+    return service.run_predict(req, user_id=str(current_user.id))
 
 
 # ──────────────────────────────────────────────
@@ -99,7 +98,7 @@ def predict_batch(
     logger.info(f"[predict_batch] user={current_user.email} items={len(req.items)}")
     start = time.perf_counter()
 
-    results = service.run_batch_predict(req.items)
+    results = service.run_batch_predict(req.items, user_id=str(current_user.id))
     total_latency = round((time.perf_counter() - start) * 1000, 3)
 
     logger.info(f"[predict_batch] done items={len(results)} total_latency={total_latency}ms")
@@ -135,5 +134,5 @@ def get_history(
     current_user: User = Depends(get_current_active_user),
 ):
     logger.info(f"[history] user={current_user.email} limit={limit}")
-    items = service.get_history(limit=limit)
+    items = service.get_history(user_id=str(current_user.id), limit=limit)
     return PredictionHistoryResponse(items=items, total=len(items))
