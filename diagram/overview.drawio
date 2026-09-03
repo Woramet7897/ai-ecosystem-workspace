@@ -1,6 +1,6 @@
 <mxfile host="65bd71144e">
     <diagram id="Sv1FceXfGGSaBW52RIzN" name="Page-1">
-        <mxGraphModel dx="456" dy="367" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+        <mxGraphModel dx="461" dy="493" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -91,11 +91,17 @@
                 <mxCell id="39" value="&lt;span&gt;&lt;span&gt;&lt;font&gt;Annotated &lt;span&gt;Database&lt;/span&gt;,&amp;nbsp;&lt;/font&gt;&lt;/span&gt;&lt;span style=&quot;color: rgb(63, 63, 63);&quot;&gt;Label Studio, etc&lt;/span&gt;&lt;/span&gt;" style="image;html=1;image=img/lib/clip_art/computers/Database_128x128.png" parent="1" vertex="1">
                     <mxGeometry x="610" y="450" width="60" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="53" style="edgeStyle=none;html=1;startArrow=classic;startFill=1;" edge="1" parent="1" source="52" target="8">
+                <mxCell id="53" style="edgeStyle=none;html=1;startArrow=classic;startFill=1;" parent="1" source="52" target="8" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="52" value="label studio" style="label;whiteSpace=wrap;html=1;align=center;verticalAlign=bottom;spacingLeft=0;spacingBottom=4;imageAlign=center;imageVerticalAlign=top;image=img/clipart/Gear_128x128.png" vertex="1" parent="1">
+                <mxCell id="52" value="label studio" style="label;whiteSpace=wrap;html=1;align=center;verticalAlign=bottom;spacingLeft=0;spacingBottom=4;imageAlign=center;imageVerticalAlign=top;image=img/clipart/Gear_128x128.png" parent="1" vertex="1">
                     <mxGeometry x="375.3" y="590" width="120" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="57" style="edgeStyle=none;html=1;startArrow=block;startFill=1;" edge="1" parent="1" source="56" target="39">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="56" value="Hugging Face" style="image;aspect=fixed;perimeter=ellipsePerimeter;html=1;align=center;shadow=0;dashed=0;spacingTop=3;image=img/lib/active_directory/internet_cloud.svg;" vertex="1" parent="1">
+                    <mxGeometry x="599.13" y="558.5" width="81.75" height="51.5" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>

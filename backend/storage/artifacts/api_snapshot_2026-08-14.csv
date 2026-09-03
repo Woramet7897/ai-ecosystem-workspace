@@ -1,0 +1,62 @@
+﻿Method,Path,Tag,Summary,Description,Request Schema,Response Model,Status Codes
+POST,/auth/signup,Authentication,สมัครสมาชิกใหม่,"POST /auth/signup
+
+สร้างบัญชีผู้ใช้ใหม่
+- ตรวจสอบ email / username ซ้ำ
+- Hash password ด้วย bcrypt (ปลอดภัย)
+- บันทึกลง PostgreSQL",SignUpRequest,HTTPValidationError,"201, 422"
+POST,/auth/login,Authentication,เข้าสู่ระบบ - รับ JWT Token,"POST /auth/login
+
+ตรวจสอบ email + password แล้วออก JWT token คู่:
+- **access_token**: อายุ 30 นาที ใช้เรียก API ทั่วไป
+- **refresh_token**: อายุ 7 วัน ใช้ขอ token ใหม่",LoginRequest,HTTPValidationError,"200, 422"
+POST,/auth/logout,Authentication,ออกจากระบบ,"POST /auth/logout
+
+ออกจากระบบ — ยืนยันว่า token ยัง valid ก่อนตอบ
+(Stateless JWT: client ควรลบ token ออกจาก storage เอง)",,MessageResponse,200
+POST,/auth/refresh,Authentication,ต่ออายุ Token,"POST /auth/refresh
+
+ใช้ refresh_token เพื่อขอ token คู่ใหม่
+- ตรวจสอบว่า refresh token ยัง valid
+- ออก access + refresh token ใหม่ทั้งคู่ (token rotation)",RefreshTokenRequest,HTTPValidationError,"200, 422"
+GET,/auth/me,Authentication,ดูข้อมูลผู้ใช้ปัจจุบัน,"GET /auth/me
+
+ดึงข้อมูล user ที่กำลัง login อยู่
+ต้องส่ง access_token ใน Header: Authorization: Bearer <token>",,UserResponse,200
+POST,/inference/predict,Inference,ประมวลผล AI รายการเดียว,"ส่ง input เดี่ยว (ข้อความหรือ URL รูปภาพ) เข้าโมเดล AI แล้วรับผลลัพธ์กลับ
+
+**ต้องการ:** Bearer token จาก `/auth/login`
+
+**Input:**
+- `input_text` — ข้อความสำหรับงาน NLP (sentiment, classification)
+- `",PredictRequest,HTTPValidationError,"200, 422"
+POST,/inference/predict/batch,Inference,ประมวลผล AI หลายรายการพร้อมกัน,"ส่ง input หลายรายการพร้อมกันในครั้งเดียว เหมาะสำหรับ bulk processing
+แต่ละ item ถูกประมวลผลแยกกัน ผลลัพธ์กลับมาในรูป list ตามลำดับ
+
+**ต้องการ:** Bearer token จาก `/auth/login`
+
+**ข้อจำกัด:** สูงสุด 50",BatchPredictRequest,HTTPValidationError,"200, 422"
+GET,/inference/history,Inference,ดูประวัติการ predict,"ดึงประวัติ prediction ล่าสุดของ session นี้ เรียงจากใหม่ไปเก่า
+
+**ต้องการ:** Bearer token จาก `/auth/login`
+
+**หมายเหตุ:** ปัจจุบันเก็บใน in-memory store (หายเมื่อ restart server)
+ในระบบจริงควรเก็บลง ",,HTTPValidationError,"200, 422"
+POST,/feedback/submit,Feedback,ส่ง feedback แจ้งผลการทำนายที่ผิด,"ผู้ใช้ส่ง feedback เพื่อแจ้งว่าผลการทำนายจาก `/inference/predict` ไม่ถูกต้อง
+โดยระบุ label ที่ถูกต้องพร้อม prediction_id
+
+**ต้องการ:** Bearer token จาก `/auth/login`
+
+**Flow หลัง submit:**
+1. ระบบสร้า",FeedbackSubmitRequest,HTTPValidationError,"200, 422"
+GET,/feedback/reviewed,Feedback,ดึง feedback ที่ expert ตรวจสอบแล้ว,"ดึงรายการ annotation ที่ expert ตรวจสอบและยืนยัน label เรียบร้อยแล้วจาก Label Studio
+
+**ต้องการ:** Bearer token จาก `/auth/login`
+
+**ใช้สำหรับ:**
+- ทีม ML ดาวน์โหลดข้อมูลที่ผ่านการตรวจสอบไปใช้ fine-tu",,ReviewedFeedbackResponse,200
+GET,/mlops/models,MLOps,ดูโมเดลทั้งหมดที่มีในระบบ,แสดงรายการโมเดลทั้งหมดที่ลงทะเบียนไว้ พร้อมระบุว่าเวอร์ชันไหน active อยู่,,ModelListResponse,200
+POST,/mlops/models/activate,MLOps,สลับโมเดลที่ใช้งานอยู่,สลับเวอร์ชันโมเดลที่ใช้งาน (Blue-Green Deployment) โดยไม่ต้องรีสตาร์ทระบบ,ActivateRequest,HTTPValidationError,"200, 422"
+GET,/mlops/health,MLOps,ตรวจสอบสถานะทุก Service ในระบบ,"ตรวจสอบสถานะจริงของทุก service ในระบบ: Postgres, Redis, MinIO และ GPU (ถ้ามี)",,HealthResponse,200
+GET,/mlops/status,MLOps,ตรวจสอบสถานะระบบเบื้องต้น,"ตรวจสอบสถานะแบบง่าย คืนค่า status 'ok', version โมเดลปัจจุบัน และเวลาปัจจุบัน",,SimpleStatusResponse,200
+GET,/,Root,Health Check,ตรวจสอบว่า API ทำงานอยู่ คืน version และลิงก์ docs,,,200

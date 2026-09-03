@@ -24,6 +24,9 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 
 # ── Install dependencies (frozen = reproducible, no-dev = production) ──
+# UV_PYTHON_DOWNLOADS=never บังคับให้ uv ใช้ Python ของ base image เท่านั้น
+# ป้องกันการดาวน์โหลด Python เวอร์ชันอื่น (เช่น 3.14) ที่อาจไม่มี prebuilt wheel
+ENV UV_PYTHON_DOWNLOADS=never
 RUN uv sync --frozen --no-dev
 
 # ── Copy source code ──
