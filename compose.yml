@@ -30,11 +30,16 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 131205
-      POSTGRES_DB: postgres 
+      POSTGRES_DB: postgres
     ports:
       - "5432:5432"
     volumes:
-      - postgresql-data:/var/lib/postgresql/data 
+      - postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     logging:
       driver: "json-file"
       options:
@@ -49,15 +54,14 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # ตั้งค่าเชื่อมต่อใช้งาน Label Studio กับ PostgreSQL
       DJANGO_DB: default
       POSTGRE_NAME: postgres
       POSTGRE_USER: postgres
       POSTGRE_PASSWORD: 131205
       POSTGRE_PORT: 5432
-      POSTGRE_HOST: postgres 
+      POSTGRE_HOST: postgres
     depends_on:
-      - postgres 
+      - postgres
     logging:
       driver: "json-file"
       options:
@@ -78,13 +82,94 @@ services:
     volumes:
       - minio-data:/data
     command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
 
+  # 5.FastAPI Backend
+  # build: ./backend/Dockerfile (uv sync --frozen)
+  # ใช้ REDIS_HOST=redis, REDIS_PORT=6379 (Docker internal network)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override local .env ให้ชี้ไป Docker service names
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      MINIO_URL: minio:9000
+      LABEL_STUDIO_URL: http://label-studio:8080
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # 6.Trainer Worker (ARQ + HuggingFace)
+  # build: ./backend/Dockerfile.trainer
+  # CMD: arq app.features.workers.tasks.WorkerSettings
+  # GPU: ต้องการ nvidia-container-toolkit บนเครื่อง host
+  trainer-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.trainer
+    container_name: trainer-worker
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_URL: minio:9000
+      LOG_DIR: /logs
+    volumes:
+      - trainer-logs:/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    # ── GPU support ──────────────────────────────────────────
+    # ต้องการ: NVIDIA driver >= 525 + nvidia-container-toolkit
+    # ติดตั้ง: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+    # ถ้าไม่มี GPU ให้ comment out section deploy ด้านล่างออก
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
 volumes:
   redis-data:
   postgresql-data:
   minio-data:
+  trainer-logs:    # เก็บ training log (/logs ใน container)

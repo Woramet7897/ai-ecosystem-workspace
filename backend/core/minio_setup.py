@@ -14,8 +14,11 @@ REQUIRED_BUCKETS = [
     "user-profiles",          # รูปโปรไฟล์ผู้ใช้
     "user-profiles-versioned", # รูปโปรไฟล์แบบมี versioning
     "feedback-data",           # ข้อมูล feedback จาก prediction
-    "model-artifacts",         # ไฟล์โมเดล
+    "model-artifacts",         # ไฟล์โมเดล (legacy)
+    "datasets",                # training datasets (.parquet files)
+    "models",                  # trained model artifacts + logs (versioned)
 ]
+
 
 
 def ensure_buckets_exist() -> None:

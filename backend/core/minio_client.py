@@ -57,3 +57,47 @@ def upload_bytes(bucket: str, object_name: str, data: bytes, content_type: str =
     )
     logger.info(f"Uploaded {object_name} to bucket '{bucket}'")
     return object_name
+
+
+def ensure_bucket(bucket: str) -> None:
+    """สร้าง bucket ถ้ายังไม่มี (idempotent)"""
+    client = get_minio_client()
+    if not client.bucket_exists(bucket):
+        client.make_bucket(bucket)
+        logger.info(f"Created bucket: '{bucket}'")
+
+
+def upload_file(bucket: str, object_name: str, file_path: str, content_type: str = "application/octet-stream") -> str:
+    """
+    Upload ไฟล์จาก local path ขึ้น MinIO
+    คืน object_name ที่บันทึกสำเร็จ
+    """
+    client = get_minio_client()
+    ensure_bucket(bucket)
+    client.fput_object(bucket, object_name, file_path, content_type=content_type)
+    logger.info(f"Uploaded file {file_path} -> bucket '{bucket}/{object_name}'")
+    return object_name
+
+
+def download_file(bucket: str, object_name: str, dest_path: str) -> str:
+    """
+    Download ไฟล์จาก MinIO ลง local path
+    คืน dest_path ที่ดาวน์โหลดสำเร็จ
+    """
+    client = get_minio_client()
+    client.fget_object(bucket, object_name, dest_path)
+    logger.info(f"Downloaded bucket '{bucket}/{object_name}' -> {dest_path}")
+    return dest_path
+
+
+def list_objects(bucket: str, prefix: str = "") -> list[str]:
+    """
+    List รายชื่อ object ใน bucket ที่ขึ้นต้นด้วย prefix
+    คืน list ของ object_name
+    """
+    client = get_minio_client()
+    objects = client.list_objects(bucket, prefix=prefix, recursive=True)
+    names = [obj.object_name for obj in objects]
+    logger.info(f"Listed {len(names)} objects in bucket '{bucket}' prefix='{prefix}'")
+    return names
+

@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from core.logger import setup_custom_logger
 from core.database import create_all_tables
 from core.minio_setup import ensure_buckets_exist
-from app.features import inference, feedback, mlops
+from app.features import inference, feedback, mlops, training
 from app.features.auth import router as auth_router
 
 logger = setup_custom_logger("main")
@@ -59,6 +59,7 @@ app = FastAPI(
 | **Inference** | รับ input ส่งผ่านโมเดล AI แล้วคืนผลลัพธ์ |
 | **Feedback** | รับ feedback และ export ข้อมูลจาก MinIO |
 | **MLOps** | จัดการโมเดลและตรวจสอบสถานะระบบ |
+| **Training** | ส่ง fine-tune job เข้าคิว Redis พร้อมกำหนดเวลาเริ่มทำงาน |
     """,
     version="0.1.0",
     contact={"name": "Warintorn", "url": "https://github.com/Woramet7897/ai-ecosystem-workspace"},
@@ -67,6 +68,7 @@ app = FastAPI(
         {"name": "Inference",      "description": "ส่ง input เข้าโมเดล AI แล้วรับผลลัพธ์"},
         {"name": "Feedback",       "description": "รับ feedback และ export ข้อมูลจาก MinIO"},
         {"name": "MLOps",          "description": "จัดการโมเดลและตรวจสอบสถานะระบบ"},
+        {"name": "Training",       "description": "ส่ง fine-tune job เข้าคิว Redis พร้อมกำหนดเวลาเริ่มทำงาน"},
         {"name": "Root",           "description": "Health check เบื้องต้น"},
     ],
     lifespan=lifespan,
@@ -90,6 +92,7 @@ app.include_router(auth_router.router)
 app.include_router(inference.router)
 app.include_router(feedback.router)
 app.include_router(mlops.router)
+app.include_router(training.router)
 
 
 # ──────────────────────────────────────────────

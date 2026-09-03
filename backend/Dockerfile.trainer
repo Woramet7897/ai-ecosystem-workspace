@@ -1,0 +1,49 @@
+# ──────────────────────────────────────────────────────────────
+# backend/Dockerfile.trainer — ARQ Trainer Worker (GPU)
+#
+# GPU Build (ใช้งานจริง):
+#   base image ปัจจุบัน: python:3.12-slim (CPU-only torch)
+#
+#   สำหรับ GPU จริงให้เปลี่ยน FROM เป็น:
+#     FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+#   แล้วเพิ่ม:
+#     RUN pip install torch --index-url https://download.pytorch.org/whl/cu121
+#
+#   ต้องการบนเครื่อง Host:
+#   - NVIDIA driver >= 525
+#   - nvidia-container-toolkit (https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+#   - Docker compose deploy.resources.reservations.devices (ตั้งไว้ใน compose.yml แล้ว)
+#
+# Build: docker build -f Dockerfile.trainer -t ai-ecosystem-trainer .
+# ──────────────────────────────────────────────────────────────
+
+FROM python:3.12-slim
+
+# ── System packages ──
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Install uv ──
+RUN pip install uv --no-cache-dir
+
+# ── Log directory (mount volume ใน compose.yml เพื่อ persist) ──
+RUN mkdir -p /logs
+ENV LOG_DIR=/logs
+
+# ── Working directory ──
+WORKDIR /app
+
+# ── Copy dependency files ──
+COPY pyproject.toml uv.lock ./
+
+# ── Install all dependencies รวม torch/transformers ──
+RUN uv sync --frozen --no-dev
+
+# ── Copy source ──
+COPY . .
+
+# ── ARQ worker entrypoint ──
+# WorkerSettings อยู่ใน app.features.workers.tasks
+CMD ["uv", "run", "arq", "app.features.workers.tasks.WorkerSettings"]
