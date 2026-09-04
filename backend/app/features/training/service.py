@@ -84,18 +84,27 @@ async def get_training_status(job_id: str) -> TrainStatusResponse:
         if status == JobStatus.complete:
             try:
                 result = await job.result(timeout=1)
-            except Exception:
-                result = "completed (result not available)"
+            except Exception as job_exc:
+                # job.result() re-raise exception ที่เกิดขึ้นจริงตอนเทรน
+                # ต้องรายงานเป็น failed ไม่ใช่ complete เพื่อไม่ให้สถานะโกหก
+                status_str = "failed"
+                result = f"Job failed: {job_exc}"
 
         await pool.aclose()
+
+        def _safe_iso(obj, attr: str) -> str | None:
+            """ดึง datetime attribute แบบปลอดภัย — JobDef (ยังไม่เริ่มงาน)
+            ไม่มี start_time/finish_time เหมือน JobResult (งานเริ่ม/จบแล้ว)"""
+            value = getattr(obj, attr, None)
+            return value.isoformat() if value else None
 
         return TrainStatusResponse(
             job_id=job_id,
             status=status_str,
             result=result,
-            enqueue_time=info.enqueue_time.isoformat() if info and info.enqueue_time else None,
-            start_time=info.start_time.isoformat() if info and info.start_time else None,
-            finish_time=info.finish_time.isoformat() if info and info.finish_time else None,
+            enqueue_time=_safe_iso(info, "enqueue_time"),
+            start_time=_safe_iso(info, "start_time"),
+            finish_time=_safe_iso(info, "finish_time"),
         )
 
     except Exception as e:

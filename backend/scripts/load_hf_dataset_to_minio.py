@@ -50,8 +50,14 @@ def load_and_upload(hf_dataset_id: str, dataset_name: str | None = None) -> None
     print(f"[INFO] Will upload to MinIO: {DATASETS_BUCKET}/{dataset_name}/")
 
     try:
-        # trust_remote_code=False ปลอดภัยกว่า; eriktks/conll2003 ไม่ต้องการ
-        raw_datasets = load_dataset(hf_dataset_id, trust_remote_code=False)
+    # ใช้ revision="refs/convert/parquet" เพื่อดึงเวอร์ชัน parquet ที่ HF
+    # auto-convert ให้ทุก dataset — เลี่ยงปัญหา loading-script ที่ datasets v4+
+    # เลิกรองรับแล้ว (repo เดิมยังมีไฟล์ conll2003.py แนบอยู่)
+        raw_datasets = load_dataset(
+        hf_dataset_id,
+        revision="refs/convert/parquet",
+        trust_remote_code=False,
+    )
     except Exception as e:
         print(f"[ERROR] Failed to load dataset: {e}")
         sys.exit(1)

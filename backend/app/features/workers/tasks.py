@@ -70,6 +70,7 @@ def _make_log_callback(log_path: Path, device_info: dict):
 
     class FileLogCallback(TrainerCallback):
         def __init__(self):
+            self._log_path = log_path
             self._fh = open(log_path, "w", encoding="utf-8")
             header = {
                 "event": "training_start",
@@ -80,6 +81,16 @@ def _make_log_callback(log_path: Path, device_info: dict):
             self._fh.write("-" * 60 + "\n")
             self._fh.flush()
 
+        def _write(self, data: str):
+            """Write ที่ปลอดภัย — เปิดไฟล์ใหม่ถ้าถูกปิดไปแล้ว"""
+            try:
+                if self._fh.closed:
+                    self._fh = open(self._log_path, "a", encoding="utf-8")
+                self._fh.write(data + "\n")
+                self._fh.flush()
+            except Exception:
+                pass  # ห้ามให้ log callback crash หยุด training
+
         def on_log(self, args, state, control, logs=None, **kwargs):
             if logs:
                 line = json.dumps({
@@ -89,25 +100,24 @@ def _make_log_callback(log_path: Path, device_info: dict):
                     **{k: round(v, 6) if isinstance(v, float) else v
                        for k, v in logs.items()},
                 })
-                self._fh.write(line + "\n")
-                self._fh.flush()
+                self._write(line)
 
         def on_epoch_end(self, args, state, control, **kwargs):
-            self._fh.write(json.dumps({
+            self._write(json.dumps({
                 "event": "epoch_end",
                 "epoch": state.epoch,
                 "step": state.global_step,
-            }) + "\n")
-            self._fh.flush()
+            }))
 
         def on_train_end(self, args, state, control, **kwargs):
-            self._fh.write("-" * 60 + "\n")
-            self._fh.write(json.dumps({
+            self._write("-" * 60)
+            self._write(json.dumps({
                 "event": "training_end",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "total_steps": state.global_step,
-            }) + "\n")
-            self._fh.close()
+            }))
+            if not self._fh.closed:
+                self._fh.close()
 
     return FileLogCallback()
 
@@ -320,7 +330,6 @@ async def train_model(
             load_best_model_at_end=False,
             report_to="none",
             fp16=use_fp16,           # FP16 on GPU → เร็วขึ้น + ใช้ VRAM น้อยลง
-            no_cuda=False,           # ห้าม override เป็น CPU
             push_to_hub=False,
             dataloader_num_workers=0,  # ป้องกัน multiprocessing issue ใน container
         )
@@ -359,7 +368,7 @@ async def train_model(
             args=training_args,
             train_dataset=tokenized_datasets["train"],
             eval_dataset=eval_dataset,
-            tokenizer=tokenizer,
+            processing_class=tokenizer,
             data_collator=data_collator,
             compute_metrics=compute_metrics if eval_dataset else None,
             callbacks=[log_callback],
