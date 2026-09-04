@@ -11,3 +11,4 @@ storage/
 *.log
 *.xlsx
 *.csv
+.env

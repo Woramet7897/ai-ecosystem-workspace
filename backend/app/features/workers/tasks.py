@@ -1,16 +1,17 @@
 """
-workers/tasks.py — ARQ Trainer Worker
+workers/tasks.py — ARQ Trainer Worker (GPU-enabled)
 
 ฟังก์ชันหลัก: train_model()
 Flow:
-  1. Download dataset (.parquet) จาก MinIO bucket 'datasets/{dataset_name}/'
-  2. Load HuggingFace Dataset จาก parquet files
-  3. Tokenize + align NER labels (subword token -> label -100)
-  4. Fine-tune AutoModelForTokenClassification (base: bert-base-cased)
-  5. TrainerCallback เขียน log ทุก step/epoch ลงไฟล์
-  6. Evaluate ด้วย seqeval (precision, recall, f1)
-  7. Save model + tokenizer แล้ว upload ทั้งโฟลเดอร์ + log -> MinIO 'models/{model_name}/v{timestamp}/'
-  8. คืน summary dict เป็นผลลัพธ์ของ job
+  1. Log device info (GPU/CUDA/torch version) → พิสูจน์ GPU ก่อนทำงานจริง
+  2. Download dataset (.parquet) จาก MinIO bucket 'datasets/{dataset_name}/'
+  3. Load HuggingFace Dataset จาก parquet files
+  4. Tokenize + align NER labels (subword token -> label -100)
+  5. Fine-tune AutoModelForTokenClassification ด้วย GPU (cuda:0)
+  6. TrainerCallback เขียน log ทุก step/epoch ลงไฟล์ (device, loss, metrics)
+  7. Evaluate ด้วย seqeval (precision, recall, f1)
+  8. Save model + tokenizer แล้ว upload ทั้งโฟลเดอร์ + log -> MinIO 'models/{model_name}/v{timestamp}/'
+  9. คืน summary dict เป็นผลลัพธ์ของ job
 
 อ้างอิง: https://huggingface.co/learn/llm-course/en/chapter7/2
 """
@@ -36,37 +37,76 @@ LOG_DIR = Path(os.environ.get("LOG_DIR", "/logs"))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
+# ── GPU / Device Info ─────────────────────────────────────
+
+def get_device_info() -> dict:
+    """
+    ตรวจสอบ CUDA availability และคืน dict ของ device info
+    ใช้ log ตอนเริ่ม job เพื่อพิสูจน์ว่า GPU ทำงาน
+    """
+    import torch  # type: ignore
+    cuda_available = torch.cuda.is_available()
+    info = {
+        "torch_version": torch.__version__,
+        "cuda_build": torch.version.cuda,
+        "cuda_available": cuda_available,
+        "device": "cuda" if cuda_available else "cpu",
+    }
+    if cuda_available:
+        info["gpu_name"] = torch.cuda.get_device_name(0)
+        info["gpu_count"] = torch.cuda.device_count()
+        info["gpu_memory_mb"] = round(torch.cuda.get_device_properties(0).total_memory / 1e6)
+    return info
+
+
 # ── Trainer Callback (เขียน log ทุก step/epoch) ───────────
 
-def _make_log_callback(log_path: Path):
+def _make_log_callback(log_path: Path, device_info: dict):
     """
     สร้าง TrainerCallback ที่เขียน training log ลงไฟล์ทุก step/epoch
-    เป็น closure เพื่อให้ log_path ถูก capture ไว้
+    เป็น closure เพื่อให้ log_path และ device_info ถูก capture ไว้
     """
-    from transformers import TrainerCallback
+    from transformers import TrainerCallback  # type: ignore
 
     class FileLogCallback(TrainerCallback):
         def __init__(self):
             self._fh = open(log_path, "w", encoding="utf-8")
-            self._fh.write(f"Training started at {datetime.now(timezone.utc).isoformat()}\n")
+            header = {
+                "event": "training_start",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "device_info": device_info,
+            }
+            self._fh.write(json.dumps(header) + "\n")
             self._fh.write("-" * 60 + "\n")
             self._fh.flush()
 
         def on_log(self, args, state, control, logs=None, **kwargs):
             if logs:
-                line = json.dumps({"step": state.global_step, **logs})
+                line = json.dumps({
+                    "event": "step_log",
+                    "step": state.global_step,
+                    "epoch": round(state.epoch, 2) if state.epoch else None,
+                    **{k: round(v, 6) if isinstance(v, float) else v
+                       for k, v in logs.items()},
+                })
                 self._fh.write(line + "\n")
                 self._fh.flush()
 
         def on_epoch_end(self, args, state, control, **kwargs):
-            self._fh.write(
-                f"[epoch {state.epoch:.1f}] step={state.global_step}\n"
-            )
+            self._fh.write(json.dumps({
+                "event": "epoch_end",
+                "epoch": state.epoch,
+                "step": state.global_step,
+            }) + "\n")
             self._fh.flush()
 
         def on_train_end(self, args, state, control, **kwargs):
             self._fh.write("-" * 60 + "\n")
-            self._fh.write(f"Training ended at {datetime.now(timezone.utc).isoformat()}\n")
+            self._fh.write(json.dumps({
+                "event": "training_end",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "total_steps": state.global_step,
+            }) + "\n")
             self._fh.close()
 
     return FileLogCallback()
@@ -88,7 +128,6 @@ def _align_labels_with_tokens(labels, word_ids):
             current_word = word_id
             new_labels.append(labels[word_id])
         else:
-            # subword token ของ word เดิม
             new_labels.append(-100)
     return new_labels
 
@@ -123,10 +162,10 @@ async def train_model(
     user_id: str = "system",
 ) -> dict[str, Any]:
     """
-    ARQ worker function: fine-tune Token Classification model
+    ARQ worker function: fine-tune Token Classification model ด้วย GPU
 
     Args:
-        ctx:          ARQ context (ไม่ใช้ในงานนี้ แต่ ARQ ต้องการเป็น arg แรก)
+        ctx:          ARQ context (ไม่ใช้ แต่ ARQ ต้องการเป็น arg แรก)
         dataset_name: ชื่อ dataset ใน MinIO 'datasets/' bucket
         model_name:   ชื่อโมเดลที่จะบันทึกลง MinIO 'models/' bucket
         base_model:   HuggingFace model ID สำหรับ fine-tune
@@ -136,17 +175,26 @@ async def train_model(
         user_id:      UUID ของ user ที่ submit job
 
     Returns:
-        summary dict พร้อม metrics และ MinIO path
+        summary dict พร้อม metrics, device info, และ MinIO path
     """
+    import torch  # type: ignore
+
     job_id = ctx.get("job_id", "unknown")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     log_path = LOG_DIR / f"train_{job_id}.log"
     workdir = Path(tempfile.mkdtemp(prefix=f"train_{job_id}_"))
 
+    # ── Step 0: Log device info (GPU smoke check) ──
+    device_info = get_device_info()
     logger.info(
         f"[train_model] START job_id={job_id} dataset={dataset_name} "
-        f"model={model_name} base={base_model} epochs={num_epochs} user={user_id}"
+        f"model={model_name} base={base_model} epochs={num_epochs} "
+        f"device={device_info['device']} gpu={device_info.get('gpu_name', 'N/A')} "
+        f"torch={device_info['torch_version']} cuda_build={device_info['cuda_build']} "
+        f"cuda_available={device_info['cuda_available']} user={user_id}"
     )
+
+    device = torch.device("cuda" if device_info["cuda_available"] else "cpu")
 
     try:
         # ── Step 1: Download dataset parquet files จาก MinIO ──
@@ -161,57 +209,67 @@ async def train_model(
                 f"— run scripts/load_hf_dataset_to_minio.py first"
             )
 
-        local_parquets: dict[str, str] = {}  # split -> local_path
+        local_parquets: dict[str, str] = {}
         for obj_name in objects:
-            split = Path(obj_name).stem  # e.g. "train", "validation", "test"
+            split = Path(obj_name).stem
             local_path = str(dataset_dir / Path(obj_name).name)
             download_file(DATASETS_BUCKET, obj_name, local_path)
             local_parquets[split] = local_path
             logger.info(f"[train_model] Downloaded split '{split}' -> {local_path}")
 
         # ── Step 2: Load HuggingFace Dataset ──
-        from datasets import DatasetDict, load_dataset  # type: ignore
+        from datasets import load_dataset  # type: ignore
 
         logger.info("[train_model] Loading dataset from parquet files...")
         data_files = {split: path for split, path in local_parquets.items()}
         raw_datasets = load_dataset("parquet", data_files=data_files)
 
-        # ตรวจหา label column (ner_tags หรือ labels หรือ ner_labels)
-        sample = raw_datasets[list(raw_datasets.keys())[0]]
+        # Detect label column
+        sample_split = list(raw_datasets.keys())[0]
+        sample = raw_datasets[sample_split]
         label_col = None
         for candidate in ["ner_tags", "labels", "ner_labels", "pos_tags"]:
             if candidate in sample.column_names:
                 label_col = candidate
                 break
         if label_col is None:
-            raise ValueError(
-                f"Cannot find NER label column. Available: {sample.column_names}"
-            )
-
-        # ตรวจสอบว่ามี 'tokens' column
+            raise ValueError(f"Cannot find NER label column. Available: {sample.column_names}")
         if "tokens" not in sample.column_names:
-            raise ValueError(
-                f"Cannot find 'tokens' column. Available: {sample.column_names}"
+            raise ValueError(f"Cannot find 'tokens' column. Available: {sample.column_names}")
+
+        # ── Step 2b: Subset for smoke-test (max_steps controls this) ──
+        # ถ้า max_steps > 0 ให้ตัด dataset ให้เล็กลงเพื่อ smoke-test เร็วขึ้น
+        # แต่ยังเป็น real data จาก Hugging Face
+        if max_steps > 0:
+            max_train_samples = max_steps * batch_size * 2  # rough estimate
+            max_eval_samples = min(100, max_train_samples // 4)
+            for split_name in list(raw_datasets.keys()):
+                limit = max_train_samples if split_name == "train" else max_eval_samples
+                raw_datasets[split_name] = raw_datasets[split_name].select(
+                    range(min(limit, len(raw_datasets[split_name])))
+                )
+            logger.info(
+                f"[train_model] Smoke-test mode: train={len(raw_datasets.get('train', []))} "
+                f"validation={len(raw_datasets.get('validation', []))} samples"
             )
 
-        # สร้าง label2id / id2label จาก train split
+        # ── Build label maps ──
         train_split = raw_datasets.get("train", list(raw_datasets.values())[0])
         all_label_ids: set[int] = set()
         for row in train_split[label_col]:
             all_label_ids.update(row)
         sorted_ids = sorted(all_label_ids)
 
-        # พยายาม decode label names จาก ClassLabel feature
         try:
             feature = train_split.features[label_col]
             if hasattr(feature, "feature"):
-                feature = feature.feature  # Sequence wrapping
+                feature = feature.feature
             id2label = {i: feature.int2str(i) for i in sorted_ids}
         except Exception:
             id2label = {i: str(i) for i in sorted_ids}
         label2id = {v: k for k, v in id2label.items()}
 
-        logger.info(f"[train_model] Labels ({len(id2label)}): {id2label}")
+        logger.info(f"[train_model] Labels ({len(id2label)}): {list(id2label.values())[:10]}...")
 
         # ── Step 3: Tokenize + Align Labels ──
         from transformers import AutoTokenizer  # type: ignore
@@ -222,7 +280,7 @@ async def train_model(
         tokenized_datasets = raw_datasets.map(
             lambda examples: _tokenize_and_align(examples, tokenizer, label_col),
             batched=True,
-            remove_columns=raw_datasets[list(raw_datasets.keys())[0]].column_names,
+            remove_columns=raw_datasets[sample_split].column_names,
         )
 
         # ── Step 4: Setup Model ──
@@ -233,7 +291,7 @@ async def train_model(
             Trainer,
         )
 
-        logger.info(f"[train_model] Loading model {base_model}...")
+        logger.info(f"[train_model] Loading model {base_model} -> device={device}...")
         model = AutoModelForTokenClassification.from_pretrained(
             base_model,
             num_labels=len(id2label),
@@ -241,11 +299,15 @@ async def train_model(
             label2id=label2id,
             ignore_mismatched_sizes=True,
         )
+        model = model.to(device)
 
         data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
         output_dir = str(workdir / "model_output")
 
-        # ── Step 5: Training Arguments + Log Callback ──
+        # ── Step 5: TrainingArguments ──
+        # fp16=True ใช้ GPU CUDA ได้ทันที (RTX 3050 รองรับ FP16 Tensor Cores)
+        # no_cuda ต้องเป็น False เสมอ (default)
+        use_fp16 = device_info["cuda_available"]
         training_args = TrainingArguments(
             output_dir=output_dir,
             num_train_epochs=num_epochs,
@@ -253,15 +315,17 @@ async def train_model(
             per_device_eval_batch_size=batch_size,
             max_steps=max_steps if max_steps > 0 else -1,
             logging_steps=10,
-            save_strategy="no",          # ไม่ save checkpoint ระหว่างทาง (save ทีเดียวตอนจบ)
+            save_strategy="no",
             eval_strategy="epoch" if "validation" in tokenized_datasets else "no",
             load_best_model_at_end=False,
-            report_to="none",            # ไม่ใช้ wandb/mlflow
-            fp16=False,                  # GPU build สามารถเปิด fp16=True ได้
+            report_to="none",
+            fp16=use_fp16,           # FP16 on GPU → เร็วขึ้น + ใช้ VRAM น้อยลง
+            no_cuda=False,           # ห้าม override เป็น CPU
             push_to_hub=False,
+            dataloader_num_workers=0,  # ป้องกัน multiprocessing issue ใน container
         )
 
-        log_callback = _make_log_callback(log_path)
+        log_callback = _make_log_callback(log_path, device_info)
 
         # ── Step 6: Evaluate function (seqeval) ──
         import evaluate  # type: ignore
@@ -280,9 +344,7 @@ async def train_model(
                 [id2label[pred] for pred, l in zip(prediction, label) if l != -100]
                 for prediction, label in zip(predictions, labels)
             ]
-            results = metric.compute(
-                predictions=true_predictions, references=true_labels
-            )
+            results = metric.compute(predictions=true_predictions, references=true_labels)
             return {
                 "precision": results["overall_precision"],
                 "recall":    results["overall_recall"],
@@ -303,50 +365,72 @@ async def train_model(
             callbacks=[log_callback],
         )
 
-        logger.info("[train_model] Training started...")
+        logger.info(
+            f"[train_model] Training on device={device_info['device']} "
+            f"fp16={use_fp16} steps={max_steps if max_steps > 0 else 'full'}"
+        )
         train_result = trainer.train()
-        logger.info(f"[train_model] Training done: {train_result.metrics}")
+        metrics = train_result.metrics
+        logger.info(f"[train_model] Training done: {metrics}")
 
-        # ── Step 7: Save model + tokenizer ──
+        # ── Step 7: Evaluate (if eval split exists) ──
+        eval_metrics = {}
+        if eval_dataset:
+            eval_result = trainer.evaluate()
+            eval_metrics = {k: round(v, 4) for k, v in eval_result.items()}
+            logger.info(f"[train_model] Eval: {eval_metrics}")
+
+        # ── Step 8: Save model + tokenizer + label map ──
         logger.info("[train_model] Saving model...")
         trainer.save_model(output_dir)
         tokenizer.save_pretrained(output_dir)
 
-        # บันทึก label map
         label_map_path = os.path.join(output_dir, "label_map.json")
         with open(label_map_path, "w", encoding="utf-8") as f:
-            json.dump({"id2label": {str(k): v for k, v in id2label.items()}, "label2id": label2id}, f, indent=2)
+            json.dump({
+                "id2label": {str(k): v for k, v in id2label.items()},
+                "label2id": label2id,
+            }, f, indent=2)
 
-        # ── Step 8: Upload model + log -> MinIO ──
+        # ── Step 9: Upload model + log -> MinIO ──
         minio_prefix = f"{model_name}/v{timestamp}"
         ensure_bucket(MODELS_BUCKET)
 
-        # upload ทุกไฟล์ในโฟลเดอร์ model_output
+        uploaded_files = []
         for f in Path(output_dir).rglob("*"):
             if f.is_file():
                 rel = f.relative_to(output_dir)
                 obj_name = f"{minio_prefix}/{rel}"
                 upload_file(MODELS_BUCKET, obj_name, str(f))
+                uploaded_files.append(obj_name)
 
-        # upload training log
         log_obj = f"{minio_prefix}/train.log"
         upload_file(MODELS_BUCKET, log_obj, str(log_path), content_type="text/plain")
 
-        logger.info(f"[train_model] Uploaded to MinIO: {MODELS_BUCKET}/{minio_prefix}/")
+        logger.info(
+            f"[train_model] Uploaded {len(uploaded_files)+1} files to "
+            f"MinIO: {MODELS_BUCKET}/{minio_prefix}/"
+        )
 
-        # summary
-        metrics = train_result.metrics
+        # ── Summary ──
         summary = {
             "status": "complete",
             "job_id": job_id,
             "model_name": model_name,
             "dataset_name": dataset_name,
             "base_model": base_model,
+            "device": device_info["device"],
+            "gpu": device_info.get("gpu_name", "N/A"),
+            "torch_version": device_info["torch_version"],
+            "cuda_version": device_info["cuda_build"],
+            "fp16": use_fp16,
             "minio_path": f"{MODELS_BUCKET}/{minio_prefix}/",
             "log_path": f"{MODELS_BUCKET}/{log_obj}",
             "num_labels": len(id2label),
             "train_runtime_sec": round(metrics.get("train_runtime", 0), 1),
             "train_loss": round(metrics.get("train_loss", 0), 4),
+            "eval_metrics": eval_metrics,
+            "uploaded_files": len(uploaded_files) + 1,
             "timestamp_utc": timestamp,
         }
         logger.info(f"[train_model] DONE: {summary}")
@@ -354,17 +438,25 @@ async def train_model(
 
     except Exception as e:
         logger.error(f"[train_model] FAILED job_id={job_id}: {e}", exc_info=True)
-        # เขียน error ลง log file
         try:
             with open(log_path, "a", encoding="utf-8") as f:
-                f.write(f"\n[ERROR] {datetime.now(timezone.utc).isoformat()}: {e}\n")
-            upload_file(MODELS_BUCKET, f"{model_name}/v{timestamp}/train.log", str(log_path), content_type="text/plain")
+                f.write(json.dumps({
+                    "event": "error",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "error": str(e),
+                }) + "\n")
+            ensure_bucket(MODELS_BUCKET)
+            upload_file(
+                MODELS_BUCKET,
+                f"{model_name}/v{timestamp}/train.log",
+                str(log_path),
+                content_type="text/plain",
+            )
         except Exception:
             pass
         raise
 
     finally:
-        # ล้าง workdir ชั่วคราว
         shutil.rmtree(workdir, ignore_errors=True)
 
 
@@ -372,13 +464,15 @@ async def train_model(
 
 class WorkerSettings:
     """
-    ARQ WorkerSettings — ถูกใช้โดย Dockerfile.trainer ผ่าน:
+    ARQ WorkerSettings สำหรับ Trainer Worker
+
+    CMD ใน Dockerfile.trainer:
       arq app.features.workers.tasks.WorkerSettings
 
-    job_timeout=7200 เพราะงานเทรน BERT อาจใช้เวลา 1-2 ชั่วโมง
-    max_jobs=1 เพราะ GPU มีจำนวนจำกัด (1 job ต่อ GPU ต่อ worker instance)
+    job_timeout = 7200  (2 ชม.) เพราะ BERT training ใช้เวลานาน
+    max_jobs = 1        เพราะ GPU มี 4GB VRAM (RTX 3050) ไม่พอ 2 job พร้อมกัน
     """
     functions = [train_model]
     redis_settings = get_arq_redis_settings()
-    job_timeout = 7200   # 2 ชั่วโมง
-    max_jobs = 1          # จำกัด concurrency เพราะ GPU
+    job_timeout = 7200
+    max_jobs = 1

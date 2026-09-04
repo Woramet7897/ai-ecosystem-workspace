@@ -82,7 +82,10 @@ async def get_training_status(job_id: str) -> TrainStatusResponse:
 
         result = None
         if status == JobStatus.complete:
-            result = await job.result(timeout=0)
+            try:
+                result = await job.result(timeout=1)
+            except Exception:
+                result = "completed (result not available)"
 
         await pool.aclose()
 

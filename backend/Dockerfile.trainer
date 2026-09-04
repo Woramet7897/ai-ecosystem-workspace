@@ -1,51 +1,37 @@
 # ──────────────────────────────────────────────────────────────
-# backend/Dockerfile.trainer — ARQ Trainer Worker (GPU)
+# backend/Dockerfile.trainer — ARQ Trainer Worker
 #
-# GPU Build (ใช้งานจริง):
-#   base image ปัจจุบัน: python:3.12-slim (CPU-only torch)
+# หมายเหตุ GPU: ไม่ต้องใช้ nvidia/cuda base image — pip/uv จะติดตั้ง
+# torch wheel ที่แปะ CUDA runtime (nvidia-cudnn-cu13, nvidia-cublas ฯลฯ)
+# มาให้เองอยู่แล้ว สิ่งที่ทำให้ container มองเห็น GPU จริงคือ host มี
+# NVIDIA driver + nvidia-container-toolkit (ยืนยันแล้วจาก `docker info`
+# ที่โชว์ Runtime: nvidia) ร่วมกับ deploy.resources.reservations.devices
+# ใน compose.yml — แค่นั้นพอ
 #
-#   สำหรับ GPU จริงให้เปลี่ยน FROM เป็น:
-#     FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
-#   แล้วเพิ่ม:
-#     RUN pip install torch --index-url https://download.pytorch.org/whl/cu121
-#
-#   ต้องการบนเครื่อง Host:
-#   - NVIDIA driver >= 525
-#   - nvidia-container-toolkit (https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
-#   - Docker compose deploy.resources.reservations.devices (ตั้งไว้ใน compose.yml แล้ว)
-#
-# Build: docker build -f Dockerfile.trainer -t ai-ecosystem-trainer .
+# Build:  docker compose build trainer-worker
 # ──────────────────────────────────────────────────────────────
 
 FROM python:3.12-slim
 
-# ── System packages ──
+# ── System deps (build-essential จำเป็นสำหรับ compile sdist เช่น numpy/seqeval) ──
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl \
-        git \
+        build-essential curl git libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Install uv ──
-RUN pip install uv --no-cache-dir
+RUN pip install --no-cache-dir uv
 
-# ── Log directory (mount volume ใน compose.yml เพื่อ persist) ──
-RUN mkdir -p /logs
-ENV LOG_DIR=/logs
-
-# ── Working directory ──
 WORKDIR /app
 
-# ── Copy dependency files ──
+# ── Install Python deps (cache layer) ──
 COPY pyproject.toml uv.lock ./
-
-# ── Install all dependencies รวม torch/transformers ──
-# UV_PYTHON_DOWNLOADS=never บังคับให้ uv ใช้ Python ของ base image เท่านั้น
-ENV UV_PYTHON_DOWNLOADS=never
 RUN uv sync --frozen --no-dev
 
 # ── Copy source ──
 COPY . .
 
-# ── ARQ worker entrypoint ──
-# WorkerSettings อยู่ใน app.features.workers.tasks
+# ── Log directory ──
+RUN mkdir -p /logs
+ENV LOG_DIR=/logs
+
 CMD ["uv", "run", "arq", "app.features.workers.tasks.WorkerSettings"]
